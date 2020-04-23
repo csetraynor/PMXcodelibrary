@@ -23,7 +23,15 @@ $PROBLEM TWO-SENS-GROW
 
 $INPUT ID AMT TIME DV WT
 $DATA ../DerivedData/COLO205.csv IGNORE=@ 
-$SUB ADVAN2
+$SUB ADVAN13 TOL=12
+$MODEL
+	COMP = (IRNC)
+	COMP = (IRNP)
+	COMP = (SN38C)
+	COMP = (P)
+	COMP = (Q)
+	COMP = (N)
+	COMP = (A)
 
 $PK
 
@@ -39,48 +47,72 @@ TVP0=EXP(THETA(3))
 MU_3=LOG(TVP0)
 P0 = EXP(MU_3+ETA(3))
 
-TV
+TVKDQ=EXP(THETA(4))
+MU_4=LOG(TVKDQ)
+KDQ = EXP(MU_4+ETA(4))
 
-TVec50 = 0.1 //  level of compound to have half effect
-gamma = 1
+TVKNEG=EXP(THETA(5))
+MU_5=LOG(TVKNEG)
+KNEG=EXP(MU_5+ETA(5))
 
-// PD parameters
-TVkg   = 0.366 // net proliferation rate
+TVKDN=EXP(THETA(6))
+MU_6=LOG(TVKDN)
+KDN=EXP(MU_6+ETA(6))
 
-TVkmax = 0.419 // max kill rate for the compound
+M = KG + KDQ
+PVINF = KDQ / M
 
-TVkdq  = 0.0154 // destruction rate of quiescent cells
-TVkneg = 0.00909 // retardation of growth constant in Gompertz model, microenvironment constant
-TVkdn  = 0.0349
+$DES
 
-CL = K*V
+;;variables
+IRNCP = A(1)/VIRN
+Fm = IRNCP/ (KM+IRNCP)
+SN38CP = A(3)/VSN38
+Pmod = A(4)+P0
+Vt = Pmod + A(5) + A(6) + A(7)
+PVratio = Pmod / Vt
+Psi = -m*PVratio*PVratio + (m+kneg)*PVratio - kneg*PVINF
 
-S2 = V
+;;PKMODEL
+DADT(1)  =  - Fm - A(1) * k0i + k21*A(2) - k12*A(1)
+DADT(2)  =  - k21*A(2) + k12*A(1)
+DADT(3)  =   Fm - SN38_C * k0s
+;;PDMODEL
+DADT(4) = kg * Pmod - Vt * Psi - kmax*effects*Pmod
+DADT(5) = Vt * Psi - kdq * A(5)
+DADT(6) = kdq * A(5) - kdn * A(6)
+DADT(7) = kmax*effects*Pmod - kdn * A(7)
 
 $ERROR 
 
-IPRED=F
-W=SQRT(THETA(4)**2+THETA(5)**2*IPRED*IPRED)  ; proportional + additive error
+IPRED=Vt
+W=SQRT(SIGMA(1,1)*IPRED**2+SIGMA(2,2))  ; proportional + additive error
 IRES=DV-IPRED
 IWRES=IRES/W
 Y=IPRED+W*EPS(1)
 
 
 $THETA
-1             	; KA ; h-1 ; LOG
--2.5            ; K  ; h-1 ; LOG
--0.5          	; V  ; L ; LOG
-0.1           	; add error
-0.1           	; prop error
+-1             	; KG ; days-1 ; LOG
+-2.5            ; KMAX  ; days-1 ; LOG
+-0.5          	; P0  ; ml ; LOG
+-1		; KDQ ; days-1 ; LOG
+-1		; KNEG ; days-1 ; LOG
+-1		; KDN ; days-1 ; LOG
+
 
 $OMEGA
-0.1			; IIV_KA ; LOG
-0.1			; IIV_K ; LOG
-0.1			; IIV_V ; LOG
+0.1			; IIV_KG ; LOG
+0.1			; IIV_KMAX ; LOG
+0.1			; IIV_P0 ; LOG
+0.1			; IIV_KDQ ; LOG
+0.1			; IIV_KNEG ; LOG
+0.1			; IIV_KN ; LOG
 
 
 $SIGMA
-1 FIX
+0.1		; prop error
+......		; add error
 
 ; Parameter estimation - FOCE
 ;$EST METHOD=1 INTER NOABORT MAXEVAL=9999 PRINT=1 NSIG=3 SIGL=9
@@ -88,7 +120,7 @@ $SIGMA
 ; Parameter estimation - IMP
 $EST METHOD=IMP ISAMPLE=300 NITER=300 RANMETHOD=3S2
 CTYPE=3 CITER=10 CALPHA=0.05 CINTERVAL=3
-PRINT=1 NOABORT INTERACTION GRD=DDDSS
+PRINT=1 NOABORT INTERACTION
 
 ; Parameer estimation - SAEM
 ;$EST METHOD=SAEM ISAMPLE=2 NBURN=1000 NITER=500 RANMETHOD=3S2
